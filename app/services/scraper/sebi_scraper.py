@@ -52,7 +52,7 @@ class SEBIScraper:
         for attempt in range(1, attempts + 1):
             try:
                 with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
+                    browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
                     page = browser.new_page()
                     try:
                         page.goto(
@@ -134,7 +134,7 @@ class SEBIScraper:
         for attempt in range(1, attempts + 1):
             try:
                 with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
+                    browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
                     page = browser.new_page()
                     try:
                         page.goto(url, wait_until="domcontentloaded", timeout=timeout)
