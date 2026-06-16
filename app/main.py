@@ -20,8 +20,20 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
-    start_scheduler()
+    # Don't let a transient DB/init error crash-loop the whole deployment;
+    # log it and still bring the server up so health checks pass and the
+    # scheduler can retry on its next tick.
+    import structlog
+
+    log = structlog.get_logger(__name__)
+    try:
+        init_db()
+    except Exception:  # noqa: BLE001
+        log.exception("init_db_failed_continuing")
+    try:
+        start_scheduler()
+    except Exception:  # noqa: BLE001
+        log.exception("scheduler_start_failed_continuing")
     yield
     stop_scheduler()
     shutdown_db()
