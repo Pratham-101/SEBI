@@ -12,7 +12,14 @@ def _normalize_db_url(url: str) -> str:
 
     Neon/Supabase hand out `postgresql://...`; SQLAlchemy needs
     `postgresql+psycopg2://...`. We rewrite it so you can paste the URL as-is.
+
+    Also strips ALL whitespace: secret editors (e.g. Replit) sometimes inject
+    spaces/newlines when a long value wraps, which corrupts the hostname. A DB
+    URL never legitimately contains whitespace, so removing it is safe.
     """
+    if not url:
+        return url
+    url = "".join(url.split())  # remove spaces, tabs, newlines anywhere
     if url.startswith("postgresql://"):
         return url.replace("postgresql://", "postgresql+psycopg2://", 1)
     if url.startswith("postgres://"):  # some providers use this scheme
