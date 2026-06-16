@@ -80,6 +80,27 @@ PRIORITY_OWNER_TEAM: dict[str, str] = {
     "LOW": TEAM_OPERATIONS,
 }
 
+# Ordered rules that pick the PRIMARY owning team (the DevRev group) from the
+# notification's own content. First match wins, so the list is ordered by
+# precedence: an enforcement order is Legal even if it also mentions disclosure.
+# This is deterministic and content-based, so the group reflects the actual
+# notification rather than whatever a weak LLM guessed for suggested_owner_team.
+PRIMARY_TEAM_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\b(enforcement|adjudicat\w*|penalt\w*|prohibit\w*|debar\w*|settlement order|recovery|demand notice|notice of demand|attachment|prosecut\w*|litigation|appeal\w*|\bsat\b)", re.I), TEAM_LEGAL),
+    (re.compile(r"\b(cyber\w*|cscrf|security breach|data breach|it security|vapt|\bsoc\b|ransomware)", re.I), TEAM_INFOSEC),
+    (re.compile(r"\b(mutual fund|\bamc\b|\betf\b|scheme information|\bnav\b|\bipo\b|rights issue|debenture|reit|invit|portfolio manager)", re.I), TEAM_FINANCE),
+    (re.compile(r"\b(aml|kyc|fpi|onboard\w*|customer due diligence|pmla|surveillance|insider trading|disclosure)", re.I), TEAM_COMPLIANCE),
+    (re.compile(r"\b(circular|operational|process|\bsop\b|implementation|system|workflow|reporting format)", re.I), TEAM_OPERATIONS),
+]
+
+
+def _content_primary_team(text: str) -> str | None:
+    """Pick the primary team from notification content via ordered rules."""
+    for pattern, team in PRIMARY_TEAM_RULES:
+        if pattern.search(text):
+            return team
+    return None
+
 
 def normalize_team(name: str) -> str:
     """Map any AI or rule-suggested team name to one of the 6 canonical teams."""
@@ -144,9 +165,31 @@ class TeamRouter:
         if not merged:
             merged = [TEAM_COMPLIANCE]
 
-        primary = normalize_team(analysis.suggested_owner_team)
-        if primary not in CANONICAL_TEAMS:
+        # Primary team (the DevRev group) — content-first precedence:
+        #   1. Deterministic content rules on the notification text (most reliable)
+        #   2. The LLM's suggested_owner_team, but ONLY if it confidently named a
+        #      non-Compliance canonical team (a weak model defaults to Compliance,
+        #      so we don't let that override real content signal)
+        #   3. Priority-based default
+        content_primary = _content_primary_team(text)
+        ai_primary_raw = (analysis.suggested_owner_team or "").strip()
+        ai_primary = normalize_team(ai_primary_raw) if ai_primary_raw else None
+        # Did the model actually recognize a specific team, or just fall back?
+        ai_is_specific = (
+            ai_primary in CANONICAL_TEAMS
+            and ai_primary_raw.lower() not in ("", "compliance", "compliance team")
+        )
+
+        if content_primary:
+            primary = content_primary
+        elif ai_is_specific:
+            primary = ai_primary
+        else:
             primary = normalize_team(PRIORITY_OWNER_TEAM.get(analysis.priority, TEAM_COMPLIANCE))
+
+        # Make sure the chosen primary is also in the notify set.
+        if primary not in merged:
+            merged.append(primary)
 
         if analysis.requires_executive_escalation or analysis.priority == "CRITICAL":
             if TEAM_EXECUTIVE not in merged:
