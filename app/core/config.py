@@ -141,6 +141,9 @@ class Settings(BaseSettings):
     # Richer ticket model
     # Namespaced tag taxonomy (reg:, domain:, type:, pri:, ...) — safe, on by default
     devrev_namespaced_tags: bool = True
+    # Stage names are workspace-specific; the generic "in_progress" hint 400s on
+    # many tenants. Off by default — enable only if your workspace has that stage.
+    devrev_set_stage_hint: bool = False
     # Custom fields require tenant schema (works.create custom_fields). Off by default.
     devrev_send_custom_fields: bool = False
     # DevRev due date field name on the work item, e.g. "target_close_date".

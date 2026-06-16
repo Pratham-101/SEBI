@@ -47,6 +47,12 @@ class DevRevAdvancedService:
     self._comments.add_comment(work_id=work_id, body="\n".join(sections))
 
   def set_stage(self, work_id: str, *, stage_hint: str = "in_progress") -> None:
+    # Stage names are workspace-specific and 400 on tenants that lack them.
+    # Skip unless explicitly enabled for a workspace known to have the stage.
+    from app.core.config import get_settings
+
+    if not get_settings().devrev_set_stage_hint:
+      return
     try:
       self._client.post(
         "works.update",
