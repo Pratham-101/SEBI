@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/PrathamChintrate/Desktop/**)",
+      "Bash(gh repo *)",
+      "Bash(git clone *)",
+      "WebFetch(domain:agent-evals.vercel.app)",
+      "Bash(mkdir -p /Users/PrathamChintrate/Desktop/Agent_Evals_clone/api)"
+    ]
+  }
+}

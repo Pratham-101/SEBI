@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RegOps Command Center — Live Intelligence</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #030508;
+      --panel: #0a0f16;
+      --border: #162636;
+      --text: #d4e4f4;
+      --muted: #4d6a82;
+      --accent: #00ff9d;
+      --warn: #ffb020;
+      --danger: #ff2d55;
+      --cyan: #00d4ff;
+      --glow: rgba(0,255,157,0.35);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Syne', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,157,0.015) 2px, rgba(0,255,157,0.015) 4px),
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(0,255,157,0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(0,212,255,0.06), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .shell { position: relative; z-index: 1; }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 16px;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,15,22,0.92);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
+    header h1 {
+      font-size: 0.95rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      text-shadow: 0 0 20px var(--glow);
+    }
+    .pulse-ring {
+      display: inline-block;
+      width: 10px; height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      margin-right: 10px;
+      box-shadow: 0 0 12px var(--accent);
+      animation: ring 2s ease-in-out infinite;
+    }
+    @keyframes ring { 0%,100%{ transform: scale(1); opacity:1 } 50%{ transform: scale(1.4); opacity:0.5 } }
+    .narrator-bar {
+      grid-column: 1 / -1;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--cyan);
+      padding: 8px 12px;
+      background: linear-gradient(90deg, rgba(0,212,255,0.08), transparent);
+      border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      animation: scanline 8s linear infinite;
+    }
+    @keyframes scanline { 0%{opacity:0.85} 50%{opacity:1} 100%{opacity:0.85} }
+    .status { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: var(--muted); }
+    .status.live { color: var(--accent); }
+    button {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      background: transparent;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 8px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    button:hover { background: rgba(0,255,157,0.12); box-shadow: 0 0 16px var(--glow); }
+    button.danger { border-color: var(--danger); color: var(--danger); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 10px;
+      padding: 12px;
+      max-width: 2000px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .panel.flash { border-color: var(--accent); box-shadow: 0 0 24px rgba(0,255,157,0.15); }
+    .panel h2 {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    .panel h2 em { color: var(--accent); font-style: normal; font-family: 'IBM Plex Mono', monospace; }
+    .body { padding: 10px 12px; max-height: 300px; overflow-y: auto; font-size: 0.78rem; }
+    .col-3 { grid-column: span 3; }
+    .col-4 { grid-column: span 4; }
+    .col-5 { grid-column: span 5; }
+    .col-6 { grid-column: span 6; }
+    .col-7 { grid-column: span 7; }
+    .col-12 { grid-column: span 12; }
+    @media (max-width: 1400px) {
+      .col-3,.col-4,.col-5,.col-6,.col-7 { grid-column: span 12; }
+    }
+    .metrics { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px; }
+    .metric {
+      background: #060b10;
+      border: 1px solid var(--border);
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .metric::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--accent));
+      transform: scaleX(var(--fill, 0.5));
+      transform-origin: left;
+      transition: transform 0.6s;
+    }
+    .metric label { font-size: 0.55rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; }
+    .metric .v { font-family: 'IBM Plex Mono', monospace; font-size: 1.5rem; color: var(--accent); margin-top: 6px; }
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 70px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #0f1820;
+      animation: slideIn 0.4s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+    .timeline-item .ts { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; color: var(--muted); }
+    .timeline-item.critical .title { color: var(--danger); }
+    .timeline-item.warning .title { color: var(--warn); }
+    .sev { font-size: 0.55rem; padding: 2px 5px; border-radius: 1px; font-family: 'IBM Plex Mono', monospace; }
+    .sev.critical { background: rgba(255,45,85,0.2); color: var(--danger); }
+    .sev.warning { background: rgba(255,176,32,0.15); color: var(--warn); }
+    .sev.info { background: rgba(0,255,157,0.1); color: var(--accent); }
+    #heatmap { width: 100%; height: 200px; background: #050a0f; }
+    #graph-canvas { width: 100%; height: 280px; background: #04080c; }
+    .heat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
+    .heat-cell {
+      padding: 10px;
+      text-align: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .heat-cell:hover { transform: scale(1.05); }
+    .copilot-row { display: flex; gap: 8px; margin-top: 8px; }
+    .copilot-row input {
+      flex: 1;
+      background: #060b10;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+    }
+    pre { font-size: 0.68rem; white-space: pre-wrap; color: var(--muted); max-height: 160px; overflow: auto; }
+    .copilot-answer { color: var(--text); font-size: 0.75rem; line-height: 1.5; margin-bottom: 10px; white-space: pre-wrap; }
+    .copilot-section { margin-top: 10px; font-size: 0.68rem; }
+    .copilot-section h4 { margin: 0 0 6px; color: var(--cyan); font-size: 0.65rem; letter-spacing: 0.05em; }
+    .copilot-section a { color: var(--accent); text-decoration: none; }
+    .copilot-section a:hover { text-decoration: underline; }
+    .copilot-badge { display: inline-block; padding: 2px 6px; margin-left: 6px; font-size: 0.6rem; background: rgba(0,212,255,0.15); color: var(--cyan); }
+    .tabs { display: flex; gap: 4px; padding: 8px 12px 0; }
+    .tabs button { padding: 4px 10px; font-size: 0.6rem; }
+    .tabs button.active { background: rgba(0,255,157,0.15); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <h1><span class="pulse-ring"></span>RegOps Live Intelligence</h1>
+      <div class="status" id="ws-status">CONNECTING...</div>
+      <div>
+        <button onclick="refresh()">SYNC</button>
+        <button class="danger" onclick="runPipeline()">RUN PIPELINE</button>
+      </div>
+      <div class="narrator-bar" id="narrator">Initializing operational intelligence...</div>
+    </header>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="grid">
+      <div class="panel col-5" id="timeline-panel">
+        <h2>Live Intelligence Timeline <em id="tl-count">0</em></h2>
+        <div class="body" id="timeline" style="max-height:420px"></div>
+      </div>
+
+      <div class="panel col-4">
+        <h2>Regulatory Pressure Heatmap</h2>
+        <canvas id="heatmap"></canvas>
+        <div class="heat-grid" id="heat-cells"></div>
+      </div>
+
+      <div class="panel col-3">
+        <h2>Intelligence Pulse</h2>
+        <div class="body" id="pulse-stats"></div>
+      </div>
+
+      <div class="panel col-4">
+        <h2>Live Feed</h2>
+        <div class="body" id="feed"></div>
+      </div>
+
+      <div class="panel col-4">
+        <h2>War Rooms · Escalations</h2>
+        <div class="body" id="ops-status"></div>
+      </div>
+
+      <div class="panel col-4">
+        <h2>Obligations · SLA</h2>
+        <div class="body" id="obligations"></div>
+      </div>
+
+      <div class="panel col-7">
+        <h2>Knowledge Graph <em>INVESTIGATIVE</em></h2>
+        <canvas id="graph-canvas"></canvas>
+      </div>
+
+      <div class="panel col-5">
+        <h2>AI Operations Console</h2>
+        <div class="tabs">
+          <button class="active" onclick="setTab('copilot')">COPILOT</button>
+          <button onclick="setTab('investigate')">INVESTIGATE</button>
+          <button onclick="setTab('replay')">REPLAY</button>
+          <button onclick="setTab('twin')">DIGITAL TWIN</button>
+          <button onclick="setTab('sim')">SIM LAB</button>
+        </div>
+        <div class="body">
+          <div id="tab-copilot">
+            <div class="copilot-row">
+              <input id="copilot-q" placeholder="Ask: why did risk increase? what remains unresolved?" />
+              <button onclick="askCopilot()">ASK</button>
+            </div>
+          </div>
+          <div id="tab-investigate" style="display:none">
+            <div class="copilot-row">
+              <input id="inv-id" placeholder="Notification ID" type="number" />
+              <button onclick="investigate()">INVESTIGATE</button>
+            </div>
+          </div>
+          <div id="tab-replay" style="display:none">
+            <div class="copilot-row">
+              <input id="replay-theme" placeholder="Theme e.g. FPI mutual fund" />
+              <button onclick="replay()">REPLAY 12M</button>
+            </div>
+          </div>
+          <div id="tab-twin" style="display:none">
+            <button onclick="loadTwin()">LOAD TWIN</button>
+            <button onclick="simulateTwin()">SIMULATE +30D</button>
+          </div>
+          <div id="tab-sim" style="display:none">
+            <div class="copilot-row">
+              <input id="sim-id" placeholder="Notification ID" type="number" />
+              <button onclick="runSim()">WHAT IF IGNORED?</button>
+            </div>
+          </div>
+          <pre id="console-out">Ready.</pre>
+          <div id="copilot-out" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    let ws;
+    let timelineData = [];
+
+    function connectWs() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}/ws/intelligence`);
+      const st = document.getElementById('ws-status');
+      ws.onopen = () => { st.textContent = 'LIVE STREAM'; st.classList.add('live'); };
+      ws.onclose = () => { st.textContent = 'RECONNECTING...'; st.classList.remove('live'); setTimeout(connectWs, 3000); };
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.event_type === 'narrator' || data.narration) {
+            document.getElementById('narrator').textContent = data.headline || data.narration?.[0] || data.narrative || '';
+            return;
+          }
+          if (data.event_type === 'heartbeat') return;
+          prependTimeline(data);
+          flashPanel('timeline-panel');
+        } catch (_) {}
+      };
+    }
+
+    function prependTimeline(ev) {
+      timelineData.unshift(ev);
+      timelineData = timelineData.slice(0, 80);
+      renderTimeline(timelineData);
+    }
+
+    function renderTimeline(events) {
+      document.getElementById('tl-count').textContent = events.length;
+      document.getElementById('timeline').innerHTML = events.map(e => {
+        const ts = (e.timestamp || '').slice(11, 19) || '—';
+        const sev = e.severity || 'info';
+        return `<div class="timeline-item ${sev}">
+          <div class="ts">${ts}</div>
+          <div>
+            <span class="sev ${sev}">${e.event_type || 'event'}</span>
+            <div class="title">${esc(e.title || '')}</div>
+            <div style="color:var(--muted);font-size:0.7rem">${esc((e.narrative||'').slice(0,120))}</div>
+          </div>
+        </div>`;
+      }).join('') || '<p style="color:var(--muted)">Awaiting intelligence events...</p>';
+    }
+
+    function flashPanel(id) {
+      const p = document.getElementById(id);
+      p.classList.add('flash');
+      setTimeout(() => p.classList.remove('flash'), 600);
+    }
+
+    async function refresh() {
+      const r = await fetch(API + '/api/v1/command-center/dashboard');
+      const d = await r.json();
+      if (d.narrator) {
+        document.getElementById('narrator').textContent = d.narrator.headline || d.narrator.narration?.[0] || '';
+        const p = d.narrator.pulse || {};
+        document.getElementById('pulse-stats').innerHTML = `
+          <p>Events 24h: <strong>${p.events_24h||0}</strong></div>
+          <p>Pressure: <strong style="color:var(--warn)">${(p.pressure_index||0).toFixed(2)}</strong></div>
+          <p>Open obligations: <strong>${p.open_obligations||0}</strong></div>
+          <p>Overdue: <strong style="color:var(--danger)">${p.overdue||0}</strong></div>
+        `;
+      }
+      if (d.timeline) { timelineData = d.timeline; renderTimeline(timelineData); }
+      renderMetrics(d.exposure || {});
+      renderFeed(d.live_feed || []);
+      renderOps(d);
+      renderObligations(d.obligations || [], d.sla || {});
+      if (d.heatmap) renderHeatmap(d.heatmap);
+      const g = await fetch(API + '/api/v1/command-center/graph/full?limit=50');
+      renderGraph(await g.json());
+    }
+
+    function renderMetrics(exp) {
+      const items = [
+        ['Exposure', exp.compliance_exposure_score, 0.8],
+        ['Pressure', exp.regulatory_pressure_index, 0.7],
+        ['Ops Risk', exp.operational_risk_score, 0.65],
+        ['Enforcement', exp.enforcement_probability, 0.9],
+        ['Teams', (exp.team_risk_load||[]).length, 0.4],
+      ];
+      document.getElementById('metrics').innerHTML = items.map(([l,v,f]) => `
+        <div class="metric" style="--fill:${Math.min(1,v||0)}">
+          <label>${l}</label>
+          <div class="v">${typeof v==='number'?v.toFixed(2):v}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderFeed(feed) {
+      document.getElementById('feed').innerHTML = feed.slice(0,12).map(n => {
+        const pri = n.priority || '';
+        const priColor = pri === 'CRITICAL' ? 'var(--danger)' : pri === 'HIGH' ? 'var(--warn)' : 'var(--accent)';
+        return `<div style="padding:10px 0;border-bottom:1px solid #0f1820;cursor:pointer" onclick="loadStrategic(${n.id})">
+          <strong>${esc(n.title)}</strong>
+          <div style="font-family:monospace;font-size:0.65rem;color:var(--muted);margin-top:4px">
+            ${n.regulator} · ${n.state}
+            ${n.devrev_ticket ? ` · <span style="color:var(--cyan)">${n.devrev_ticket}</span>` : ''}
+            ${pri ? ` · <span style="color:${priColor}">${pri}</span>` : ''}
+            ${n.obligations_count ? ` · ${n.obligations_count} obligations` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderOps(d) {
+      const wars = (d.war_rooms||[]).map(w => `<p>⚡ War room #${w.notification_id} · ${w.stage}</p>`).join('');
+      const esc = (d.escalations||[]).map(e => `<p style="color:var(--danger)">▲ ${e.level}: ${esc(e.reason)}</p>`).join('');
+      document.getElementById('ops-status').innerHTML = wars + esc || '<p style="color:var(--muted)">No active crises</p>';
+    }
+
+    function renderObligations(obs, sla) {
+      document.getElementById('obligations').innerHTML = `
+        <p>SLA breaches: <strong style="color:var(--danger)">${sla.sla_breaches||0}</strong></p>
+        ${obs.slice(0,8).map(o => `<p>${o.owner_team}: ${esc(o.description?.slice(0,60))} <em>${o.status}</em></p>`).join('')}
+      `;
+    }
+
+    function renderHeatmap(hm) {
+      const cells = hm.team_pressure || [];
+      const canvas = document.getElementById('heatmap');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth;
+      canvas.height = 200;
+      cells.forEach((c, i) => {
+        const x = (i % 6) * (canvas.width / 6);
+        const y = Math.floor(i / 6) * 50;
+        const intensity = c.intensity || 0.3;
+        ctx.fillStyle = `rgba(255,${Math.floor(80-intensity*80)},${Math.floor(100-intensity*100)},${0.3+intensity*0.6})`;
+        ctx.fillRect(x+4, y+4, canvas.width/6-8, 42);
+        ctx.fillStyle = '#8ab';
+        ctx.font = '9px IBM Plex Mono';
+        ctx.fillText(c.team?.slice(0,10)||'', x+8, y+24);
+      });
+      document.getElementById('heat-cells').innerHTML = cells.slice(0,12).map(c => `
+        <div class="heat-cell" style="background:rgba(255,${180-Math.floor(c.intensity*180)},60,${0.15+c.intensity*0.5})">
+          ${esc(c.team)}<br/>${c.obligations} ob
+        </div>
+      `).join('');
+    }
+
+    function renderGraph(g) {
+      const canvas = document.getElementById('graph-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = 280;
+      const nodes = g.nodes || [], edges = g.edges || [];
+      if (!nodes.length) { ctx.fillStyle='#4d6a82'; ctx.fillText('Graph populates after pipeline runs', 20, 40); return; }
+      const pos = {};
+      const cx = canvas.width/2, cy = canvas.height/2;
+      nodes.forEach((n,i) => {
+        const a = i/nodes.length * Math.PI*2;
+        pos[n.id] = { x: cx+Math.cos(a)*100, y: cy+Math.sin(a)*80 };
+      });
+      ctx.strokeStyle = 'rgba(0,212,255,0.2)';
+      edges.forEach(e => {
+        const s=pos[e.source], t=pos[e.target];
+        if(s&&t){ ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(t.x,t.y); ctx.stroke(); }
+      });
+      nodes.forEach(n => {
+        const p = pos[n.id];
+        ctx.fillStyle = n.type==='regulation'?'#00ff9d':n.type==='obligation'?'#ffb020':'#00d4ff';
+        ctx.beginPath(); ctx.arc(p.x,p.y,5,0,Math.PI*2); ctx.fill();
+      });
+    }
+
+    function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+    function setTab(name) {
+      ['copilot','investigate','replay','twin','sim'].forEach(t => {
+        document.getElementById('tab-'+t).style.display = t===name?'block':'none';
+      });
+      document.querySelectorAll('.tabs button').forEach((b,i) => {
+        b.classList.toggle('active', ['copilot','investigate','replay','twin','sim'][i]===name);
+      });
+    }
+
+    async function askCopilot() {
+      const q = document.getElementById('copilot-q').value;
+      const out = document.getElementById('console-out');
+      const copilotOut = document.getElementById('copilot-out');
+      out.style.display = 'none';
+      copilotOut.style.display = 'block';
+      copilotOut.innerHTML = '<p style="color:var(--muted)">Thinking...</p>';
+      const r = await fetch(API+'/api/v1/regops/copilot', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({question:q})});
+      renderCopilotResponse(await r.json());
+    }
+
+    function renderCopilotResponse(data) {
+      const el = document.getElementById('copilot-out');
+      const webBadge = data.used_web_search ? '<span class="copilot-badge">WEB SEARCH</span>' : '';
+      let html = `<div class="copilot-answer">${esc(data.answer || '')}${webBadge}</div>`;
+
+      if ((data.ticket_references || []).length) {
+        html += '<div class="copilot-section"><h4>DEVREV TICKETS</h4><ul style="margin:0;padding-left:16px">';
+        data.ticket_references.forEach(t => {
+          const link = t.url ? `<a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.display_id)}</a>` : esc(t.display_id);
+          html += `<li>${link}: ${esc(t.title)}</li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      if ((data.sebi_sources || []).length) {
+        html += '<div class="copilot-section"><h4>SEBI SOURCES</h4><ul style="margin:0;padding-left:16px">';
+        data.sebi_sources.forEach(s => {
+          html += `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      if ((data.web_sources || []).length) {
+        html += '<div class="copilot-section"><h4>WEB SOURCES</h4><ul style="margin:0;padding-left:16px">';
+        data.web_sources.forEach(s => {
+          html += `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a></li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      el.innerHTML = html || '<p style="color:var(--muted)">No response.</p>';
+    }
+
+    function showConsoleJson(data) {
+      const out = document.getElementById('console-out');
+      const copilotOut = document.getElementById('copilot-out');
+      copilotOut.style.display = 'none';
+      out.style.display = 'block';
+      out.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function investigate() {
+      const id = document.getElementById('inv-id').value;
+      const r = await fetch(API+`/api/v1/command-center/investigate?notification_id=${id}`, {method:'POST'});
+      showConsoleJson(await r.json());
+    }
+
+    async function replay() {
+      const theme = document.getElementById('replay-theme').value;
+      const r = await fetch(API+`/api/v1/command-center/replay?months=12&theme=${encodeURIComponent(theme||'')}`);
+      showConsoleJson(await r.json());
+    }
+
+    async function loadTwin() {
+      const r = await fetch(API+'/api/v1/command-center/twin');
+      showConsoleJson(await r.json());
+    }
+
+    async function simulateTwin() {
+      const r = await fetch(API+'/api/v1/command-center/twin/simulate?days=30');
+      showConsoleJson(await r.json());
+    }
+
+    async function runSim() {
+      const id = document.getElementById('sim-id').value;
+      const r = await fetch(API+`/api/v1/command-center/simulation-lab/${id}?days=30`);
+      showConsoleJson(await r.json());
+    }
+
+    async function loadStrategic(id) {
+      const [s, c] = await Promise.all([
+        fetch(API+`/api/v1/command-center/strategic/${id}`),
+        fetch(API+`/api/v1/command-center/consensus/${id}`),
+      ]);
+      showConsoleJson({
+        strategic: await s.json(),
+        consensus: await c.json(),
+      });
+      setTab('copilot');
+    }
+
+    async function runPipeline() {
+      document.getElementById('copilot-out').style.display = 'none';
+      document.getElementById('console-out').style.display = 'block';
+      document.getElementById('console-out').textContent = 'Pipeline running...';
+      const r = await fetch(API+'/trigger/manual-run?sync=true', {method:'POST'});
+      document.getElementById('console-out').textContent = JSON.stringify(await r.json(), null, 2);
+      setTimeout(refresh, 3000);
+    }
+
+    connectWs();
+    refresh();
+    setInterval(refresh, 25000);
+  </script>
+</body>
+</html>

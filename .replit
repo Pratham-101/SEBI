@@ -1,0 +1,17 @@
+run = "python -m playwright install chromium && uvicorn app.main:app --host 0.0.0.0 --port 8080"
+entrypoint = "app/main.py"
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-24_05"
+
+[env]
+USE_SYNC_PIPELINE = "true"
+
+[deployment]
+run = ["sh", "-c", "python -m playwright install chromium && uvicorn app.main:app --host 0.0.0.0 --port 8080"]
+deploymentTarget = "gce"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
