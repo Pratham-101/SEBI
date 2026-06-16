@@ -27,9 +27,12 @@ Replit storage is ephemeral; SQLite **will lose data** on every redeploy. Use a
 free managed Postgres:
 
 1. Create a free database at [neon.tech](https://neon.tech) (or Supabase).
-2. Copy the connection string and convert it to SQLAlchemy's psycopg2 form:
+2. Copy the connection string. **Replit reserves `DATABASE_URL`** and blocks you
+   from setting it, so use **`APP_DATABASE_URL`** instead — the app prefers it.
+   You can paste Neon's URL exactly as given (`postgresql://...`); it is
+   auto-rewritten to the `postgresql+psycopg2://...` driver form internally.
    ```
-   DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST/DBNAME?sslmode=require
+   APP_DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
    ```
 3. Each bank/tenant gets its **own** Neon database → full data isolation.
 
@@ -50,7 +53,7 @@ Add these as Secrets (NOT in code). Minimum for a Groq + DevRev pilot:
 | `DEVREV_API_TOKEN` | the bank's DevRev PAT |
 | `DEVREV_DEFAULT_PART_ID` | the bank's part DON |
 | `DEVREV_GROUP_*` | the 6 group DONs (run `scripts/list_devrev_groups.py`) |
-| `DATABASE_URL` | the Neon URL from step 2 |
+| `APP_DATABASE_URL` | the Neon URL from step 2 (NOT `DATABASE_URL` — Replit reserves it) |
 | `USE_SYNC_PIPELINE` | `true` (no Celery/Redis on Replit) |
 | `AI_VERIFY_HIGH_CRITICAL` | `false` (free tier can't afford the 2nd call) |
 | `GROQ_MAX_BODY_CHARS` | `5000` |

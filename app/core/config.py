@@ -1,9 +1,23 @@
 """Application configuration loaded from environment."""
 
+import os
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _normalize_db_url(url: str) -> str:
+    """Coerce a plain Postgres URL into the SQLAlchemy psycopg2 driver form.
+
+    Neon/Supabase hand out `postgresql://...`; SQLAlchemy needs
+    `postgresql+psycopg2://...`. We rewrite it so you can paste the URL as-is.
+    """
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgres://"):  # some providers use this scheme
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    return url
 
 
 class Settings(BaseSettings):
@@ -46,6 +60,10 @@ class Settings(BaseSettings):
     use_sync_pipeline: bool = False
 
     database_url: str = "postgresql+psycopg2://sebi:sebi@localhost:5432/sebi_regulatory"
+    # Replit reserves DATABASE_URL for its managed DB and blocks you from setting
+    # it. Set APP_DATABASE_URL instead (or PG_DATABASE_URL) and it wins here.
+    app_database_url: str = ""
+    pg_database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
@@ -139,6 +157,17 @@ class Settings(BaseSettings):
     # Citations: fraction of important_dates whose source_basis must appear in
     # the source text, else the item is flagged for human review.
     citation_min_supported_ratio: float = 0.5
+
+    @model_validator(mode="after")
+    def _resolve_database_url(self):
+        """Pick the DB URL: APP_DATABASE_URL > PG_DATABASE_URL > DATABASE_URL.
+
+        Lets you avoid Replit's reserved DATABASE_URL by using APP_DATABASE_URL.
+        Whichever wins is normalized to the SQLAlchemy psycopg2 driver form.
+        """
+        chosen = self.app_database_url or self.pg_database_url or self.database_url
+        self.database_url = _normalize_db_url(chosen)
+        return self
 
     @property
     def regops_enabled(self) -> bool:
